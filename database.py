@@ -2,44 +2,80 @@ import sqlite3
 from pathlib import Path
 from typing import Optional
 
-from settings import DATABASE_PATH
+import settings
 
 
 class Database:
-    def __init__(self, database_path: Path = DATABASE_PATH):
-        self.database_path = database_path
+    def __init__(self, database_path: Path | None = None):
+        if database_path is None:
+            database_path = settings.DATABASE_PATH
+
+        self.database_path = Path(database_path)
+        self.database_path.parent.mkdir(parents=True, exist_ok=True)
+
         self.connection = sqlite3.connect(self.database_path)
         self.connection.row_factory = sqlite3.Row
+
         self.create_tables()
 
     def create_tables(self) -> None:
-        query = """
-        CREATE TABLE IF NOT EXISTS articles (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            university TEXT NOT NULL,
-            title TEXT NOT NULL,
-            summary TEXT,
-            link TEXT NOT NULL UNIQUE,
-            published TEXT,
-            fetched_at TEXT NOT NULL
-        );
-        """
-
-        self.connection.execute(query)
+        self.connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS articles
+            (
+                id
+                INTEGER
+                PRIMARY
+                KEY
+                AUTOINCREMENT,
+                university
+                TEXT
+                NOT
+                NULL,
+                title
+                TEXT
+                NOT
+                NULL,
+                summary
+                TEXT,
+                link
+                TEXT
+                NOT
+                NULL
+                UNIQUE,
+                published
+                TEXT,
+                fetched_at
+                TEXT
+                NOT
+                NULL,
+                image_url
+                TEXT
+            );
+            """
+        )
         self.connection.commit()
+
+        try:
+            self.connection.execute("ALTER TABLE articles ADD COLUMN image_url TEXT;")
+            self.connection.commit()
+        except sqlite3.OperationalError:
+            pass
 
     def save_article(self, article: dict) -> None:
         query = """
-        INSERT OR IGNORE INTO articles (
+                INSERT \
+                OR IGNORE INTO articles (
             university,
             title,
             summary,
             link,
             published,
-            fetched_at
+            fetched_at,
+            image_url
         )
-        VALUES (?, ?, ?, ?, ?, ?);
-        """
+        VALUES (?, ?, ?, ?, ?, ?, ?); \
+                """
 
         self.connection.execute(
             query,
@@ -50,6 +86,7 @@ class Database:
                 article.get("link", ""),
                 article.get("published", "Unknown date"),
                 article.get("fetched_at", ""),
+                article.get("image_url", ""),
             ),
         )
 
@@ -73,7 +110,8 @@ class Database:
             summary,
             link,
             published,
-            fetched_at
+            fetched_at,
+            image_url
         FROM articles
         WHERE 1 = 1
         """
@@ -128,3 +166,12 @@ class Database:
 
         self.connection.execute(query, (max_articles,))
         self.connection.commit()
+
+    def load_cached_articles(self):
+        try:
+            self.articles = self.database.get_articles()
+        except Exception as error:
+            print(f"Could not load cached articles: {error}")
+            self.articles = []
+
+        self.render_articles()

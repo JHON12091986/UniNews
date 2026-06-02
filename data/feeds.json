@@ -1,10 +1,22 @@
 [
   {
-    "name": "University of Oxford",
-    "url": "http://feeds.reuters.com/reuters/topNews"
-  },
-  {
     "name": "MIT News",
     "url": "https://news.mit.edu/rss/feed"
-  }
+  },
+  {
+    "name": "Harvard Gazette",
+    "url": "https://news.harvard.edu/gazette/feed/"
+  },
+  {
+  "name": "Nature News",
+  "url": "https://www.nature.com/nature.rss"
+},
+{
+  "name": "Science Magazine",
+  "url": "https://www.science.org/action/showFeed?type=etoc&feed=rss&jc=science"
+},
+{
+  "name": "NIH News",
+  "url": "https://www.nih.gov/news-events/news-releases/feed"
+}
 ]

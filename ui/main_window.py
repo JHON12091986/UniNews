@@ -12,8 +12,11 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QVBoxLayout,
-    QWidget,
+    QWidget, QScrollArea,
 )
+from PyQt6.QtGui import QDesktopServices, QPixmap
+from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest
+from PyQt6.QtCore import QByteArray
 
 from database import Database
 from settings import FEEDS_FILE
@@ -41,7 +44,7 @@ class UniNewsWindow(QMainWindow):
 
         self.app_settings = load_app_settings()
         self.setup_ui()
-        self.apply_styles()
+        self.apply_theme()
         self.load_cached_articles()
 
         if self.app_settings.get("refresh_on_startup", True):
@@ -104,84 +107,152 @@ class UniNewsWindow(QMainWindow):
         self.root_layout.addWidget(header_card)
 
     def create_article_list(self):
-        self.article_list = QListWidget()
-        self.article_list.setObjectName("ArticleList")
-        self.article_list.setSpacing(12)
-        self.article_list.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
-        self.article_list.itemDoubleClicked.connect(self.open_article)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setObjectName("ArticleScrollArea")
+        self.scroll_area.setStyleSheet("""
+            QScrollArea {
+                background-color: #080A14;
+                border: none;
+            }
 
-        self.root_layout.addWidget(self.article_list)
+            QScrollArea > QWidget > QWidget {
+                background-color: #080A14;
+            }
+        """)
 
-    def apply_styles(self):
+        self.article_container = QWidget()
+        self.article_container.setStyleSheet("background-color: #080A14;")
+        self.article_container.setObjectName("ArticleContainer")
+        self.article_layout = QVBoxLayout(self.article_container)
+        self.article_layout.setContentsMargins(0, 0, 0, 0)
+        self.article_layout.setSpacing(18)
+        self.article_layout.addStretch()
+
+        self.scroll_area.setWidget(self.article_container)
+        self.root_layout.addWidget(self.scroll_area)
+
+    def apply_light_theme(self):
         self.setStyleSheet(
             """
             QMainWindow {
-                background-color: #F5F7FB;
+                background-color: #F4F0FA;
+            }
+
+            QWidget {
+                font-family: "Segoe UI", "Inter", "Arial";
+                color: #1F2937;
             }
 
             #HeaderCard {
-                background-color: white;
-                border-radius: 18px;
-                border: 1px solid #E5EAF3;
+                background-color: #FFFFFF;
+                border-radius: 24px;
+                border: 1px solid #E5D9F2;
             }
 
             #TitleLabel {
-                color: #1E293B;
-                font-size: 32px;
-                font-weight: 800;
+                color: #171124;
+                font-size: 34px;
+                font-weight: 900;
+                letter-spacing: -1px;
             }
 
             #SubtitleLabel {
-                color: #64748B;
-                font-size: 14px;
-            }
-
-            #RefreshButton {
-                background-color: #385963;
-                color: white;
-                border: none;
-                padding: 11px 20px;
-                border-radius: 10px;
+                color: #7E3AF2;
                 font-size: 14px;
                 font-weight: 600;
             }
 
-            #RefreshButton:hover {
-                background-color: #2E4A52;
+            QPushButton {
+                background-color: #FFFFFF;
+                color: #2D1B45;
+                border: 1px solid #D8C7EF;
+                padding: 10px 18px;
+                border-radius: 11px;
+                font-size: 13px;
+                font-weight: 700;
             }
 
-            #RefreshButton:pressed {
-                background-color: #22383F;
+            QPushButton:hover {
+                background-color: #F3E8FF;
+                border: 1px solid #A855F7;
+            }
+
+            QPushButton:pressed {
+                background-color: #E9D5FF;
+            }
+
+            #RefreshButton {
+                background-color: #A855F7;
+                color: #FFFFFF;
+                border: none;
+            }
+
+            #RefreshButton:hover {
+                background-color: #9333EA;
             }
 
             #RefreshButton:disabled {
-                background-color: #94A3B8;
+                background-color: #C4B5FD;
+                color: #FFFFFF;
             }
 
-            #ArticleList {
-                background-color: transparent;
+            QScrollArea {
+                background-color: #F4F0FA;
                 border: none;
-                outline: none;
             }
 
-            #ArticleList::item {
-                background-color: white;
-                color: #1E293B;
-                border: 1px solid #E5EAF3;
-                border-radius: 16px;
-                padding: 18px;
-                margin: 2px;
+            QScrollArea > QWidget > QWidget {
+                background-color: #F4F0FA;
             }
 
-            #ArticleList::item:hover {
-                background-color: #F8FAFC;
-                border: 1px solid #CBD5E1;
+            #ArticleCard {
+                background-color: #FFFFFF;
+                border: 1px solid #E6DDF3;
+                border-radius: 24px;
             }
 
-            #ArticleList::item:selected {
-                background-color: #EAF2F4;
-                border: 1px solid #385963;
-                color: #1E293B;
+            #ArticleCard:hover {
+                background-color: #FBF7FF;
+                border: 1px solid #A855F7;
+            }
+
+            #ArticleImage {
+                background-color: #F3E8FF;
+                border: 1px solid #E9D5FF;
+                border-radius: 18px;
+                color: #7E22CE;
+                font-size: 24px;
+                font-weight: 900;
+            }
+
+            #ArticleTitle {
+                color: #171124;
+                font-size: 17px;
+                font-weight: 850;
+            }
+
+            #ArticleMeta {
+                color: #7E22CE;
+                font-size: 12px;
+                font-weight: 750;
+            }
+
+            #ArticleSummary {
+                color: #4B5563;
+                font-size: 13px;
+            }
+
+            #OpenArticleLabel {
+                color: #A21CAF;
+                font-size: 12px;
+                font-weight: 850;
+            }
+
+            #EmptyLabel {
+                color: #6B7280;
+                font-size: 16px;
+                padding: 60px;
             }
 
             QScrollBar:vertical {
@@ -191,12 +262,149 @@ class UniNewsWindow(QMainWindow):
             }
 
             QScrollBar::handle:vertical {
-                background: #CBD5E1;
+                background: #D8B4FE;
                 border-radius: 5px;
             }
 
             QScrollBar::handle:vertical:hover {
-                background: #94A3B8;
+                background: #A855F7;
+            }
+
+            QScrollBar::add-line:vertical,
+            QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+            """
+        )
+
+        if hasattr(self, "article_container"):
+            self.article_container.setStyleSheet("background-color: #F4F0FA;")
+
+    def apply_dark_theme(self):
+        self.setStyleSheet(
+            """
+            QMainWindow {
+                background-color: #080A14;
+            }
+
+            QWidget {
+                font-family: "Segoe UI", "Inter", "Arial";
+                color: #F8FAFC;
+            }
+
+            #HeaderCard {
+                background-color: #111827;
+                border-radius: 24px;
+                border: 1px solid #2A3144;
+            }
+
+            #TitleLabel {
+                color: #FFFFFF;
+                font-size: 34px;
+                font-weight: 900;
+                letter-spacing: -1px;
+            }
+
+            #SubtitleLabel {
+                color: #D8B4FE;
+                font-size: 14px;
+                font-weight: 500;
+            }
+
+            QPushButton {
+                background-color: #1F2937;
+                color: #F8FAFC;
+                border: 1px solid #374151;
+                padding: 10px 18px;
+                border-radius: 11px;
+                font-size: 13px;
+                font-weight: 700;
+            }
+
+            QPushButton:hover {
+                background-color: #312E81;
+                border: 1px solid #C084FC;
+            }
+
+            QPushButton:pressed {
+                background-color: #581C87;
+            }
+
+            #RefreshButton {
+                background-color: #C084FC;
+                color: #080A14;
+                border: none;
+            }
+
+            #RefreshButton:hover {
+                background-color: #E879F9;
+            }
+
+            #RefreshButton:disabled {
+                background-color: #475569;
+                color: #CBD5E1;
+            }
+
+            #ArticleScrollArea {
+                background-color: transparent;
+                border: none;
+            }
+
+            #ArticleCard {
+                background-color: #111827;
+                border: 1px solid #2A3144;
+                border-radius: 22px;
+            }
+
+            #ArticleCard:hover {
+                background-color: #161F33;
+                border: 1px solid #C084FC;
+            }
+
+            #ArticleTitle {
+                color: #FFFFFF;
+                font-size: 17px;
+                font-weight: 800;
+                line-height: 1.3;
+            }
+
+            #ArticleMeta {
+                color: #C084FC;
+                font-size: 12px;
+                font-weight: 700;
+            }
+
+            #ArticleSummary {
+                color: #CBD5E1;
+                font-size: 13px;
+                line-height: 1.5;
+            }
+
+            #OpenArticleLabel {
+                color: #F0ABFC;
+                font-size: 12px;
+                font-weight: 800;
+            }
+
+            #EmptyLabel {
+                color: #94A3B8;
+                font-size: 16px;
+                padding: 60px;
+            }
+
+            QScrollBar:vertical {
+                background: transparent;
+                width: 10px;
+                margin: 4px;
+            }
+
+            QScrollBar::handle:vertical {
+                background: #374151;
+                border-radius: 5px;
+            }
+
+            QScrollBar::handle:vertical:hover {
+                background: #C084FC;
             }
 
             QScrollBar::add-line:vertical,
@@ -226,46 +434,34 @@ class UniNewsWindow(QMainWindow):
             return []
 
     def refresh_news(self):
-        self.article_list.clear()
+        self.clear_article_cards()
 
         self.refresh_button.setEnabled(False)
         self.refresh_button.setText("Refreshing...")
 
         feeds = self.load_feeds()
-
-        old_links = {
-            article.get("link")
-            for article in self.database.get_articles(limit=5000)
-        }
-
-        new_articles_for_notification = []
+        print("Feeds loaded:", feeds)
 
         for feed in feeds:
             university_name = feed.get("name", "Unknown university")
             feed_url = feed.get("url", "")
 
-            if not feed_url:
-                continue
+            print("Fetching:", university_name, feed_url)
 
             try:
                 articles = fetch_feed(university_name, feed_url)
-
-                for article in articles:
-                    if article.get("link") not in old_links:
-                        new_articles_for_notification.append(article)
+                print("Fetched articles:", len(articles))
 
                 self.database.save_articles(articles)
+                print("Saved articles. DB now has:", len(self.database.get_articles(limit=5000)))
 
             except Exception as error:
                 print(f"Could not fetch {university_name}: {error}")
 
-        max_cached_articles = self.app_settings.get("max_cached_articles", 500)
-        self.database.enforce_article_limit(max_cached_articles)
-
         self.articles = self.database.get_articles()
-        self.render_articles()
+        print("Articles loaded from DB:", len(self.articles))
 
-        self.handle_notifications(new_articles_for_notification)
+        self.render_articles()
 
         self.refresh_button.setEnabled(True)
         self.refresh_button.setText("Refresh news")
@@ -280,39 +476,94 @@ class UniNewsWindow(QMainWindow):
         if url:
             QDesktopServices.openUrl(QUrl(url))
 
+    def clear_article_cards(self):
+        while self.article_layout.count():
+            item = self.article_layout.takeAt(0)
+
+            widget = item.widget()
+
+            if widget is not None:
+                widget.deleteLater()
+
     def render_articles(self):
-        self.article_list.clear()
+        self.clear_article_cards()
 
         if not self.articles:
-            empty_item = QListWidgetItem(
-                "No articles found.\nCheck your RSS feeds or internet connection."
-            )
-            empty_item.setFlags(Qt.ItemFlag.NoItemFlags)
-            self.article_list.addItem(empty_item)
+            empty_label = QLabel("No articles found.\nTry refreshing your feeds.")
+            empty_label.setObjectName("EmptyLabel")
+            empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+            self.article_layout.addWidget(empty_label)
+            self.article_layout.addStretch()
             return
 
         for article in self.articles:
-            title = article.get("title", "Untitled")
-            university = article.get("university", "Unknown university")
-            published = article.get("published", "Unknown date")
-            summary = article.get("summary", "")
+            card = self.create_article_card(article)
+            self.article_layout.addWidget(card)
 
-            clean_summary = self.clean_text(summary)
+        self.article_layout.addStretch()
 
-            if len(clean_summary) > 220:
-                clean_summary = clean_summary[:220].strip() + "..."
+    def create_article_card(self, article: dict) -> QFrame:
+        card = QFrame()
+        card.setObjectName("ArticleCard")
+        card.setCursor(Qt.CursorShape.PointingHandCursor)
 
-            item_text = (
-                f"{title}\n\n"
-                f"{university}  •  {published}\n\n"
-                f"{clean_summary}"
-            )
+        card_layout = QHBoxLayout(card)
+        card_layout.setContentsMargins(18, 18, 18, 18)
+        card_layout.setSpacing(18)
 
-            item = QListWidgetItem(item_text)
-            item.setData(ARTICLE_LINK_ROLE, article.get("link", ""))
-            item.setToolTip("Double-click to open article")
+        image_box = QLabel()
+        image_box.setObjectName("ArticleImage")
+        image_box.setFixedSize(132, 92)
+        image_box.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-            self.article_list.addItem(item)
+        university = article.get("university", "UniNews")
+        initials = "".join(word[0] for word in university.split()[:2]).upper()
+
+        image_box.setText(initials)
+
+        content_layout = QVBoxLayout()
+        content_layout.setSpacing(8)
+
+        title = QLabel(article.get("title", "Untitled"))
+        title.setObjectName("ArticleTitle")
+        title.setWordWrap(True)
+
+        published = article.get("published", "Unknown date")
+
+        meta = QLabel(f"{university}  •  {published}")
+        meta.setObjectName("ArticleMeta")
+        meta.setWordWrap(True)
+
+        summary_text = self.clean_text(article.get("summary", ""))
+
+        if len(summary_text) > 230:
+            summary_text = summary_text[:230].strip() + "..."
+
+        summary = QLabel(summary_text)
+        summary.setObjectName("ArticleSummary")
+        summary.setWordWrap(True)
+
+        open_label = QLabel("Open article →")
+        open_label.setObjectName("OpenArticleLabel")
+
+        content_layout.addWidget(title)
+        content_layout.addWidget(meta)
+        content_layout.addWidget(summary)
+        content_layout.addWidget(open_label)
+
+        card_layout.addWidget(image_box)
+        card_layout.addLayout(content_layout)
+
+        link = article.get("link", "")
+
+        def open_link(event):
+            if link:
+                QDesktopServices.openUrl(QUrl(link))
+
+        card.mousePressEvent = open_link
+
+        return card
 
     def clean_text(self, text: str) -> str:
         clean = text.replace("\n", " ").replace("\r", " ").strip()
@@ -356,60 +607,9 @@ class UniNewsWindow(QMainWindow):
         theme = self.app_settings.get("theme", "light")
 
         if theme == "dark":
-            self.setStyleSheet(
-                """
-                QMainWindow {
-                    background-color: #0F172A;
-                }
-
-                #HeaderCard {
-                    background-color: #1E293B;
-                    border-radius: 18px;
-                    border: 1px solid #334155;
-                }
-
-                #TitleLabel {
-                    color: #F8FAFC;
-                    font-size: 32px;
-                    font-weight: 800;
-                }
-
-                #SubtitleLabel {
-                    color: #CBD5E1;
-                    font-size: 14px;
-                }
-
-                #RefreshButton {
-                    background-color: #385963;
-                    color: white;
-                    border: none;
-                    padding: 11px 20px;
-                    border-radius: 10px;
-                    font-size: 14px;
-                    font-weight: 600;
-                }
-
-                #ArticleList {
-                    background-color: transparent;
-                    border: none;
-                    outline: none;
-                }
-
-                #ArticleList::item {
-                    background-color: #1E293B;
-                    color: #F8FAFC;
-                    border: 1px solid #334155;
-                    border-radius: 16px;
-                    padding: 18px;
-                    margin: 2px;
-                }
-
-                #ArticleList::item:selected {
-                    background-color: #334155;
-                    border: 1px solid #385963;
-                }
-                """
-            )
+            self.apply_dark_theme()
         else:
-            self.apply_styles()
+            self.apply_light_theme()
+
+
 
