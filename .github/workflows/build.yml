@@ -33,7 +33,7 @@ jobs:
 
       - name: Run Ruff Static Analysis
         run: |
-          ruff check .
+          ruff check . --fix
 
       - name: Install Native Build Tools
         run: |

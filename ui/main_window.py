@@ -1,7 +1,6 @@
 import json
 
 from PyQt6.QtCore import Qt, QUrl
-from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -15,8 +14,6 @@ from PyQt6.QtWidgets import (
     QWidget, QScrollArea, QLineEdit,
 )
 from PyQt6.QtGui import QDesktopServices, QPixmap
-from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest
-from PyQt6.QtCore import QByteArray
 
 from database import Database
 from settings import FEEDS_FILE

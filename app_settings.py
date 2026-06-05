@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 
 from settings import APP_DATA_DIR
 
