@@ -51,6 +51,8 @@ class UniNewsWindow(QMainWindow):
 
         if self.app_settings.get("refresh_on_startup", True):
             self.refresh_news()
+        else:
+            QTimer.singleShot(1500, self.refresh_news)
 
         self.refresh_timer = QTimer(self)
         self.refresh_timer.timeout.connect(self.refresh_news)
@@ -58,8 +60,158 @@ class UniNewsWindow(QMainWindow):
         self.apply_theme()
         self.apply_refresh_timer()
 
-        if self.app_settings.get("refresh_on_startup", True):
-            self.refresh_news()
+    def get_theme_stylesheet(self, theme: str) -> str:
+        if theme == "dark":
+            bg = "#080A14"
+            panel = "#111827"
+            panel_2 = "#0B1220"
+            border = "#2A3144"
+            text = "#F8FAFC"
+            muted = "#CBD5E1"
+            accent = "#C084FC"
+            accent_hover = "#E879F9"
+            input_bg = "#111827"
+            card = "#111827"
+            card_hover = "#161F33"
+            image_bg = "#1F2937"
+        else:
+            bg = "#F4F0FA"
+            panel = "#FFFFFF"
+            panel_2 = "#FFFFFF"
+            border = "#E6DDF3"
+            text = "#171124"
+            muted = "#4B5563"
+            accent = "#A855F7"
+            accent_hover = "#9333EA"
+            input_bg = "#F9F5FF"
+            card = "#FFFFFF"
+            card_hover = "#FBF7FF"
+            image_bg = "#F3E8FF"
+
+        return f"""
+        QMainWindow, QDialog {{
+            background-color: {bg};
+        }}
+
+        QWidget {{
+            font-family: "Segoe UI", "Inter", "Arial";
+            color: {text};
+        }}
+
+        #HeaderCard, #Sidebar {{
+            background-color: {panel};
+            border: 1px solid {border};
+            border-radius: 24px;
+        }}
+
+        #TitleLabel {{
+            color: {text};
+            font-size: 34px;
+            font-weight: 900;
+        }}
+
+        #SubtitleLabel, #ArticleMeta, #OpenArticleLabel {{
+            color: {accent};
+            font-weight: 700;
+        }}
+
+        QPushButton {{
+            background-color: {panel_2};
+            color: {text};
+            border: 1px solid {border};
+            padding: 10px 18px;
+            border-radius: 11px;
+            font-size: 13px;
+            font-weight: 700;
+        }}
+
+        QPushButton:hover {{
+            background-color: {card_hover};
+            border: 1px solid {accent};
+        }}
+
+        #RefreshButton, #SaveButton {{
+            background-color: {accent};
+            color: white;
+            border: none;
+        }}
+
+        #RefreshButton:hover, #SaveButton:hover {{
+            background-color: {accent_hover};
+        }}
+
+        QLineEdit, QComboBox, QSpinBox {{
+            background-color: {input_bg};
+            color: {text};
+            border: 1px solid {border};
+            border-radius: 10px;
+            padding: 8px 10px;
+            font-size: 13px;
+        }}
+
+        QCheckBox {{
+            color: {text};
+            spacing: 8px;
+        }}
+
+        QScrollArea, QScrollArea > QWidget > QWidget, #ArticleContainer {{
+            background-color: {bg};
+            border: none;
+        }}
+
+        #ArticleCard {{
+            background-color: {card};
+            border: 1px solid {border};
+            border-radius: 24px;
+        }}
+
+        #ArticleCard:hover {{
+            background-color: {card_hover};
+            border: 1px solid {accent};
+        }}
+
+        #ArticleImage {{
+            background-color: {image_bg};
+            border: 1px solid {border};
+            border-radius: 18px;
+            color: {accent};
+            font-size: 24px;
+            font-weight: 900;
+        }}
+
+        #ArticleTitle, #SidebarTitle {{
+            color: {text};
+            font-weight: 900;
+        }}
+
+        #ArticleSummary {{
+            color: {muted};
+            font-size: 13px;
+        }}
+
+        #SourceList {{
+            background-color: transparent;
+            border: none;
+            outline: none;
+        }}
+
+        #SourceList::item {{
+            color: {muted};
+            padding: 10px 12px;
+            border-radius: 10px;
+        }}
+
+        #SourceList::item:hover {{
+            background-color: {card_hover};
+            color: {text};
+        }}
+
+        #SourceList::item:selected {{
+            background-color: {accent};
+            color: white;
+            font-weight: 800;
+        }}
+        """
 
     def setup_ui(self):
         self.root = QWidget()
@@ -626,13 +778,11 @@ class UniNewsWindow(QMainWindow):
         self.refresh_button.setText("Refreshing...")
 
         feeds = self.load_feeds()
-        print("Feeds loaded:", feeds)
 
         for feed in feeds:
             university_name = feed.get("name", "Unknown university")
             feed_url = feed.get("url", "")
 
-            print("Fetching:", university_name, feed_url)
 
             try:
                 source_type = feed.get("type", "rss")
@@ -642,8 +792,6 @@ class UniNewsWindow(QMainWindow):
                     articles = run_scraper(scraper_id)
                 else:
                     articles = fetch_feed(university_name, feed_url)
-
-                print("Fetched articles:", len(articles))
 
                 self.database.save_articles(articles)
 
@@ -766,6 +914,7 @@ class UniNewsWindow(QMainWindow):
 
     def open_settings(self):
         dialog = SettingsDialog(self)
+        dialog.setStyleSheet(self.get_theme_stylesheet(self.app_settings.get("theme", "light")))
 
         if dialog.exec():
             self.app_settings = load_app_settings()
@@ -800,11 +949,11 @@ class UniNewsWindow(QMainWindow):
 
     def apply_theme(self) -> None:
         theme = self.app_settings.get("theme", "light")
+        stylesheet = self.get_theme_stylesheet(theme)
+        self.setStyleSheet(stylesheet)
 
-        if theme == "dark":
-            self.apply_dark_theme()
-        else:
-            self.apply_light_theme()
-
+        if hasattr(self, "article_container"):
+            bg = "#080A14" if theme == "dark" else "#F4F0FA"
+            self.article_container.setStyleSheet(f"background-color: {bg};")
 
 

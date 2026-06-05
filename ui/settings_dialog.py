@@ -69,6 +69,7 @@ class SettingsDialog(QDialog):
         self.cancel_button.clicked.connect(self.reject)
 
         self.save_button = QPushButton("Save")
+        self.save_button.setObjectName("SaveButton")
         self.save_button.clicked.connect(self.save_settings)
 
         button_layout.addStretch()
