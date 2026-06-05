@@ -1,0 +1,12 @@
+[
+  {
+    "name": "MIT News",
+    "type": "rss",
+    "url": "https://news.mit.edu/rss/feed"
+  },
+  {
+    "name": "University of Macedonia",
+    "type": "scraper",
+    "scraper": "uom_news"
+  }
+]
