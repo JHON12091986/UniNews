@@ -180,8 +180,4 @@ Before opening a pull request:
 
 ## License
 
-<<<<<<< HEAD
-This project is released under the MIT License.
-=======
 This project is released under the GNU General Public License v3.0.
->>>>>>> d4366a7acaeea3b24f79877cde7e2b7fea51bfa7
