@@ -33,9 +33,10 @@ def fetch_feed(university_name: str, feed_url: str) -> list[dict]:
         articles.append(
             {
                 "university": university_name,
+                "source": university_name,
                 "title": entry.get("title", "Untitled"),
                 "summary": entry.get("summary", ""),
-                "link": link,
+                "link": entry.get("link", ""),
                 "published": entry.get("published", "Unknown date"),
                 "fetched_at": fetched_at,
                 "image_url": extract_image_url(entry),

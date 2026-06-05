@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QVBoxLayout,
-    QWidget, QScrollArea,
+    QWidget, QScrollArea, QLineEdit,
 )
 from PyQt6.QtGui import QDesktopServices, QPixmap
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest
@@ -25,6 +25,7 @@ from ui.settings_dialog import SettingsDialog
 from app_settings import load_app_settings
 from PyQt6.QtCore import QTimer
 from notifications import should_notify, send_article_notification
+from scrapers.scraper_service import run_scraper
 
 ARTICLE_LINK_ROLE = 1000
 
@@ -41,6 +42,10 @@ class UniNewsWindow(QMainWindow):
 
         self.database = Database()
         self.articles = []
+        self.selected_university = "All"
+        self.selected_source = "All"
+        self.search_text = ""
+
 
         self.app_settings = load_app_settings()
         self.setup_ui()
@@ -66,9 +71,99 @@ class UniNewsWindow(QMainWindow):
         self.root_layout.setSpacing(20)
 
         self.create_header()
+
+        self.content_layout = QHBoxLayout()
+        self.content_layout.setSpacing(20)
+
+        self.create_sidebar()
         self.create_article_list()
 
+        self.content_layout.addWidget(self.sidebar)
+        self.content_layout.addWidget(self.scroll_area, stretch=1)
+
+        self.root_layout.addLayout(self.content_layout)
+
         self.setCentralWidget(self.root)
+
+    def update_source_list(self):
+        self.source_list.clear()
+
+        all_item = QListWidgetItem("All")
+        all_item.setData(Qt.ItemDataRole.UserRole, {"university": "All", "source": "All"})
+        self.source_list.addItem(all_item)
+
+        universities = self.database.get_universities()
+
+        for university in universities:
+            university_item = QListWidgetItem(university)
+            university_item.setData(
+                Qt.ItemDataRole.UserRole,
+                {"university": university, "source": "All"},
+            )
+            self.source_list.addItem(university_item)
+
+            sources = self.database.get_sources_for_university(university)
+
+            for source in sources:
+                if source == university:
+                    continue
+
+                source_item = QListWidgetItem(f"   └ {source}")
+                source_item.setData(
+                    Qt.ItemDataRole.UserRole,
+                    {"university": university, "source": source},
+                )
+                self.source_list.addItem(source_item)
+
+        self.source_list.setCurrentRow(0)
+
+    def on_source_selected(self, item: QListWidgetItem):
+        data = item.data(Qt.ItemDataRole.UserRole)
+
+        self.selected_university = data.get("university", "All")
+        self.selected_source = data.get("source", "All")
+
+        self.load_filtered_articles()
+
+    def on_search_changed(self, text: str):
+        self.search_text = text.strip()
+        self.load_filtered_articles()
+
+    def load_filtered_articles(self):
+        self.articles = self.database.get_articles(
+            university=self.selected_university,
+            source=self.selected_source,
+            search_text=self.search_text,
+            limit=500,
+        )
+
+        self.render_articles()
+
+    def create_sidebar(self):
+        self.sidebar = QFrame()
+        self.sidebar.setObjectName("Sidebar")
+        self.sidebar.setFixedWidth(230)
+
+        sidebar_layout = QVBoxLayout(self.sidebar)
+        sidebar_layout.setContentsMargins(18, 18, 18, 18)
+        sidebar_layout.setSpacing(14)
+
+        title = QLabel("Sources")
+        title.setObjectName("SidebarTitle")
+
+        self.search_input = QLineEdit()
+        self.search_input.setObjectName("SearchInput")
+        self.search_input.setPlaceholderText("Search articles...")
+        self.search_input.textChanged.connect(self.on_search_changed)
+
+        self.source_list = QListWidget()
+        self.source_list.setObjectName("SourceList")
+        self.source_list.itemClicked.connect(self.on_source_selected)
+
+        sidebar_layout.addWidget(title)
+        sidebar_layout.addWidget(self.search_input)
+        sidebar_layout.addWidget(self.source_list)
+        sidebar_layout.addStretch()
 
     def create_header(self):
         header_card = QFrame()
@@ -130,7 +225,6 @@ class UniNewsWindow(QMainWindow):
         self.article_layout.addStretch()
 
         self.scroll_area.setWidget(self.article_container)
-        self.root_layout.addWidget(self.scroll_area)
 
     def apply_light_theme(self):
         self.setStyleSheet(
@@ -274,6 +368,54 @@ class UniNewsWindow(QMainWindow):
             QScrollBar::sub-line:vertical {
                 height: 0px;
             }
+            
+            #Sidebar {
+                background-color: #FFFFFF;
+                border: 1px solid #E6DDF3;
+                border-radius: 22px;
+            }
+            
+            #SidebarTitle {
+                color: #171124;
+                font-size: 18px;
+                font-weight: 900;
+            }
+            
+            #SearchInput {
+                background-color: #F9F5FF;
+                color: #171124;
+                border: 1px solid #E9D5FF;
+                border-radius: 10px;
+                padding: 9px 12px;
+                font-size: 13px;
+            }
+            
+            #SearchInput:focus {
+                border: 1px solid #A855F7;
+            }
+            
+            #SourceList {
+                background-color: transparent;
+                border: none;
+                outline: none;
+            }
+            
+            #SourceList::item {
+                color: #4B5563;
+                padding: 10px 12px;
+                border-radius: 10px;
+            }
+            
+            #SourceList::item:hover {
+                background-color: #F3E8FF;
+                color: #171124;
+            }
+            
+            #SourceList::item:selected {
+                background-color: #A855F7;
+                color: white;
+                font-weight: 800;
+            }
             """
         )
 
@@ -283,6 +425,53 @@ class UniNewsWindow(QMainWindow):
     def apply_dark_theme(self):
         self.setStyleSheet(
             """
+            #Sidebar {
+                background-color: #0B1220;
+                border: 1px solid #1E293B;
+                border-radius: 22px;
+            }
+            
+            #SidebarTitle {
+                color: #FFFFFF;
+                font-size: 18px;
+                font-weight: 900;
+            }
+            
+            #SearchInput {
+                background-color: #111827;
+                color: #F8FAFC;
+                border: 1px solid #334155;
+                border-radius: 10px;
+                padding: 9px 12px;
+                font-size: 13px;
+            }
+            
+            #SearchInput:focus {
+                border: 1px solid #C084FC;
+            }
+            
+            #SourceList {
+                background-color: transparent;
+                border: none;
+                outline: none;
+            }
+            
+            #SourceList::item {
+                color: #CBD5E1;
+                padding: 10px 12px;
+                border-radius: 10px;
+            }
+            
+            #SourceList::item:hover {
+                background-color: #1E293B;
+                color: #FFFFFF;
+            }
+            
+            #SourceList::item:selected {
+                background-color: #C084FC;
+                color: #080A14;
+                font-weight: 800;
+            }
             QMainWindow {
                 background-color: #080A14;
             }
@@ -449,11 +638,17 @@ class UniNewsWindow(QMainWindow):
             print("Fetching:", university_name, feed_url)
 
             try:
-                articles = fetch_feed(university_name, feed_url)
+                source_type = feed.get("type", "rss")
+
+                if source_type == "scraper":
+                    scraper_id = feed.get("scraper")
+                    articles = run_scraper(scraper_id)
+                else:
+                    articles = fetch_feed(university_name, feed_url)
+
                 print("Fetched articles:", len(articles))
 
                 self.database.save_articles(articles)
-                print("Saved articles. DB now has:", len(self.database.get_articles(limit=5000)))
 
             except Exception as error:
                 print(f"Could not fetch {university_name}: {error}")
@@ -463,12 +658,12 @@ class UniNewsWindow(QMainWindow):
 
         self.render_articles()
 
-        self.refresh_button.setEnabled(True)
-        self.refresh_button.setText("Refresh news")
+        self.update_source_list()
+        self.load_filtered_articles()
 
     def load_cached_articles(self):
-        self.articles = self.database.get_articles()
-        self.render_articles()
+        self.update_source_list()
+        self.load_filtered_articles()
 
     def open_article(self, item: QListWidgetItem):
         url = item.data(ARTICLE_LINK_ROLE)
@@ -531,7 +726,10 @@ class UniNewsWindow(QMainWindow):
 
         published = article.get("published", "Unknown date")
 
-        meta = QLabel(f"{university}  •  {published}")
+        source = article.get("source", university)
+        published = article.get("published", "Unknown date")
+
+        meta = QLabel(f"{university}  •  {source}  •  {published}")
         meta.setObjectName("ArticleMeta")
         meta.setWordWrap(True)
 
